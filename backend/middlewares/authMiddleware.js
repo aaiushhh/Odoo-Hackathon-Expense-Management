@@ -1,117 +1,113 @@
-<<<<<<< HEAD
-// This file will contain all access control logic
-
-const { ObjectId } = require('mongoose').Types;
+// middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-
 const JWT_SECRET = process.env.JWT_SECRET || 'your_default_secret_for_hackathon';
 
 /**
- * Middleware to check if the authenticated user has the 'Admin' role.
+ * Middleware to authenticate JWT and attach full user object to req.user
  */
-const isAdmin = (req, res, next) => {
-    // Assumes req.user is set by a prior JWT verification middleware
-    if (!req.user || req.user.role !== 'Admin') {
-        return res.status(403).json({ 
-            success: false, 
-            message: 'Access Denied. Admin privileges required.' 
-        });
+const authenticateToken = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. No token provided.'
+      });
     }
+
+    // Decode token
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Fetch full user from DB (exclude password)
+    const user = await User.findById(decoded.userId).select('-password');
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token. User not found.'
+      });
+    }
+
+    req.user = user; // attach user object to request
     next();
+  } catch (error) {
+    res.status(403).json({
+      success: false,
+      message: 'Invalid or expired token.'
+    });
+  }
 };
 
 /**
- * Middleware to check if the user is an Admin OR the Manager of the target user.
- * Useful for updating/viewing a specific user profile.
+ * Middleware to restrict access based on allowed roles
+ * @param {Array<String>} allowedRoles e.g. ['Admin', 'Manager']
  */
-const isAdminOrManager = (req, res, next) => {
-    // Assumes req.user is set by JWT verification
-    const { role } = req.user;
-    const targetUserId = req.params.userId || req.body.managerId; // Or any target ID
-
-    // 1. Check if Admin
-    if (role === 'Admin') {
-        return next();
-    }
-    
-    // 2. Check if Manager (More complex logic needed here, e.g., fetching the target user)
-    // For now, we'll keep it simple for user creation/fetch. The 'Manager' logic 
-    // for approvals is handled elsewhere. For the admin routes, isAdmin is sufficient.
-    
-    // For now, let's just allow Admins for the core Admin tasks
-    if (role === 'Manager') {
-        // You would typically fetch the user being targeted and check their managerId
-        // but since this is primarily Admin functionality, we'll stick to isAdmin for management routes.
-        return res.status(403).json({ 
-            success: false, 
-            message: 'Access Denied. Admin or specific Manager privileges required.' 
-        });
-    }
-
-    // Default catch-all
-    return res.status(403).json({ 
-        success: false, 
-        message: 'Access Denied. Insufficient permissions.' 
+const authorizeRoles = (allowedRoles) => (req, res, next) => {
+  if (!req.user || !allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({
+      success: false,
+      message: `Forbidden. Role ${req.user ? req.user.role : 'None'} does not have permission.`
     });
+  }
+  next();
 };
 
-// Main JWT authentication middleware
-const authenticate = async (req, res, next) => {
-  try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Access denied. No token provided.' 
+/**
+ * Middleware to check if the user is an Admin
+ */
+const isAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'Admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access Denied. Admin privileges required.'
+    });
+  }
+  next();
+};
+
+/**
+ * Middleware to check if the user is Admin or Manager of target user
+ * For routes that involve specific user actions (update/view)
+ */
+const isAdminOrManager = async (req, res, next) => {
+  const { role, _id } = req.user;
+  const targetUserId = req.params.userId || req.body.managerId;
+
+  if (role === 'Admin') return next();
+
+  if (role === 'Manager') {
+    // Fetch the target user and check if current user is their manager
+    if (!targetUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Target user ID is required for Manager authorization.'
       });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await User.findById(decoded.userId).select('-password');
-    
-    if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid token. User not found.' 
-      });
+    const targetUser = await User.findById(targetUserId).select('managerId');
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'Target user not found.' });
     }
 
-    req.user = user;
-    next();
-  } catch (error) {
-    res.status(401).json({ 
-      success: false, 
-      message: 'Invalid token.' 
+    if (targetUser.managerId && targetUser.managerId.toString() === _id.toString()) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      message: 'Access Denied. You are not the manager of this user.'
     });
   }
+
+  return res.status(403).json({
+    success: false,
+    message: 'Access Denied. Insufficient permissions.'
+  });
 };
 
-
-module.exports = { 
-    isAdmin,
-    isAdminOrManager,
-    authenticate 
+module.exports = {
+  authenticateToken,
+  authorizeRoles,
+  isAdmin,
+  isAdminOrManager
 };
-=======
-// middlewares/authMiddleware.js
-const jwt = require("jsonwebtoken");
-
-module.exports = (req, res, next) => {
-  const token = req.header("Authorization")?.replace("Bearer ", "");
-  if (!token) {
-    return res
-      .status(401)
-      .json({ message: "Access denied. No token provided." });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // attach user payload from token
-    next();
-  } catch (err) {
-    res.status(400).json({ message: "Invalid token" });
-  }
-};
->>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e

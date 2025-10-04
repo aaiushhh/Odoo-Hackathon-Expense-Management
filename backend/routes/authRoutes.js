@@ -5,14 +5,18 @@ const {
   forgotPassword,
 } = require("../controllers/authController");
 const router = express.Router();
-const auth = require("../middlewares/authMiddleware"); // JWT middleware
-const { isAdmin } = require("../middlewares/roleMiddleware"); // Role-based check
-const { getApprovalStatus } = require("../controllers/approvalController");
 
-// Protect this route with JWT + only Admins can access
-router.get("/:expenseId", auth, isAdmin, getApprovalStatus);
+// ⚠️ Removed unnecessary imports:
+// const auth = require("../middlewares/authMiddleware"); 
+// const { isAdmin } = require("../middlewares/roleMiddleware"); 
+// const { getApprovalStatus } = require("../controllers/approvalController");
 
+// --- Auth Endpoints ---
+
+// POST /api/auth/signup (Public)
 router.post("/signup", signup);
+
+// POST /api/auth/login (Public)
 router.post("/login", login);
 router.post("/forgot-password", forgotPassword);
 

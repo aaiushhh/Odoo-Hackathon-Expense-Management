@@ -19,4 +19,13 @@ API.interceptors.request.use((config) => {
     return Promise.reject(error);
 });
 
+export const userApi = {
+    getAllUsers: () => API.get('/company/users'),
+    createUser: (userData) => API.post('/company/users', userData),
+    updateUser: (userId, updateData) => API.put(`/company/users/${userId}`, updateData),
+    sendPassword: (userId) => API.post(`/company/users/${userId}/reset-password`),
+    // Configuration API (to be built later)
+    updateApprovalRules: (userId, rules) => API.post(`/config/approval-rules/${userId}`, rules), 
+};
+
 export default API;

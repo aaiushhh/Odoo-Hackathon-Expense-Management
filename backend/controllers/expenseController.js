@@ -1,3 +1,5 @@
+// controllers/expenseController.js
+const mongoose = require('mongoose');
 const Expense = require('../models/Expense');
 const ApprovalFlow = require('../models/ApprovalFlow');
 const Team = require('../models/Team');
@@ -5,20 +7,29 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const currencyConverter = require('../utils/currencyConverter');
 
-// Create a new expense
-exports.createExpense = async (req, res) => {
+// ======================================================
+// 🧾 1. Submit New Expense (Employee)
+// ======================================================
+const submitExpense = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { amount, currency, category, description, date, receiptUrl } = req.body;
+    const user = req.user;
 
-    // Get company currency from Company model
-    const company = await Company.findById(req.user.companyId);
-    const companyCurrency = company?.currency || 'USD';
+    // 1️⃣ Fetch company currency
+    const company = await Company.findById(user.companyId).session(session);
+    if (!company) throw new Error("Company not found.");
+    const companyCurrency = company.currency || 'USD';
+
+    // 2️⃣ Convert currency
     const convertedAmount = await currencyConverter.convert(currency, companyCurrency, amount);
 
-    // Create the expense
-    const expense = await Expense.create({
-      employeeId: req.user._id,
-      companyId: req.user.companyId,
+    // 3️⃣ Create Expense
+    const expense = new Expense({
+      employeeId: user.userId,
+      companyId: user.companyId,
       amount,
       currency,
       convertedAmount,
@@ -28,284 +39,220 @@ exports.createExpense = async (req, res) => {
       receiptUrl,
       status: 'PENDING'
     });
+    await expense.save({ session });
 
-    // Create approval flow for the expense
-    const approvalFlow = await createApprovalFlow(expense._id, req.user.companyId);
+    // 4️⃣ Build Approval Flow dynamically
+    const employee = await User.findById(user.userId).select('managerId').session(session);
+    const managerId = employee?.managerId;
 
-    // Update expense with approval flow ID
+    const higherRoles = ['Manager', 'CFO', 'Director', 'Admin'];
+    const approvers = await User.find({
+      companyId: user.companyId,
+      role: { $in: higherRoles }
+    }).select('_id').session(session);
+
+    const approverIds = approvers.map(u => u._id);
+    let sequence = [];
+
+    if (managerId) sequence.push(managerId);
+    sequence = [...sequence, ...approverIds.filter(id => !managerId || id.toString() !== managerId.toString())];
+
+    // 5️⃣ Create ApprovalFlow document
+    const approvalFlow = new ApprovalFlow({
+      expense_id: expense._id,
+      companyId: user.companyId,
+      steps: [
+        { stepNumber: 1, role: managerId ? 'Manager' : 'CFO' },
+        { stepNumber: 2, role: 'Admin' }
+      ],
+      sequence,
+      required_approvers: [],
+      percentage: 100,
+      currentStep: 1,
+      status: 'PENDING'
+    });
+    await approvalFlow.save({ session });
+
+    // 6️⃣ Link approval flow to expense
     expense.approvalFlowId = approvalFlow._id;
-    await expense.save();
+    await expense.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(201).json({
-      success: true,
-      message: 'Expense created successfully',
-      expense: {
-        expenseId: expense._id,
-        status: expense.status,
-        approvalFlowId: approvalFlow._id,
-        convertedAmount: convertedAmount,
-        companyCurrency: companyCurrency
-      }
+      message: 'Expense submitted and approval flow initiated successfully',
+      expense,
+      approvalFlow
     });
   } catch (err) {
-    console.error('Create Expense Error:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: err.message 
-    });
+    await session.abortTransaction();
+    session.endSession();
+    next(err);
   }
 };
 
-// Helper function to create approval flow
-async function createApprovalFlow(expenseId, companyId) {
-  // Get company's default approval workflow
-  // For now, create a simple workflow: Manager -> Admin
-  const managers = await User.find({ 
-    companyId: companyId, 
-    role: 'Manager' 
-  }).limit(1);
-  
-  const admins = await User.find({ 
-    companyId: companyId, 
-    role: 'Admin' 
-  }).limit(1);
-
-  const approvers = [...managers, ...admins];
-  
-  const approvalFlow = await ApprovalFlow.create({
-    expense_id: expenseId,
-    companyId: companyId,
-    steps: [
-      { stepNumber: 1, role: 'Manager' },
-      { stepNumber: 2, role: 'Admin' }
-    ],
-    sequence: approvers.map(user => user._id),
-    required_approvers: managers.map(user => user._id),
-    percentage: 100,
-    currentStep: 1,
-    status: 'PENDING'
-  });
-
-  return approvalFlow;
-}
-
-exports.getMyExpenses = async (req, res) => {
+// ======================================================
+// 👤 2. Get My Expenses (Employee)
+// ======================================================
+const getMyExpenses = async (req, res, next) => {
   try {
-    const expenses = await Expense.find({ employeeId: req.user._id })
-      .sort({ createdAt: -1 });
+    const expenses = await Expense.find({ employeeId: req.user.userId })
+      .populate('approvalFlowId')
+      .sort({ date: -1 });
 
-    const formattedExpenses = expenses.map(expense => ({
-      expenseId: expense._id,
-      amount: expense.amount,
-      currency: expense.currency,
-      convertedAmount: expense.convertedAmount,
-      category: expense.category,
-      description: expense.description,
-      status: expense.status,
-      date: expense.date,
-      approvalFlowId: expense.approvalFlowId
-    }));
-
-    res.json({ 
-      success: true,
-      expenses: formattedExpenses 
-    });
+    res.json({ expenses });
   } catch (err) {
-    console.error('Get My Expenses Error:', err);
-    res.status(500).json({ 
-      success: false,
-      message: err.message 
-    });
+    next(err);
   }
 };
 
-exports.getExpenseById = async (req, res) => {
+// ======================================================
+// 🔍 3. Get Expense by ID (Employee/Admin)
+// ======================================================
+const getExpenseById = async (req, res, next) => {
   try {
     const { expenseId } = req.params;
-    const expense = await Expense.findById(expenseId);
-    
-    if (!expense) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Expense not found' 
-      });
+    const user = req.user;
+
+    const expense = await Expense.findById(expenseId).populate('approvalFlowId');
+    if (!expense) return res.status(404).json({ message: 'Expense not found' });
+
+    if (expense.employeeId.toString() !== user.userId.toString() && user.role !== 'Admin') {
+      return res.status(403).json({ message: 'Forbidden: You do not own this expense.' });
     }
 
-    // Check if user owns this expense or is authorized to view it
-    if (expense.employeeId.toString() !== req.user._id.toString() && 
-        !['Admin', 'Manager'].includes(req.user.role)) {
-      return res.status(403).json({ 
-        success: false,
-        message: 'Access denied' 
-      });
-    }
-
-    const approvalFlow = await ApprovalFlow.findOne({ expense_id: expense._id })
-      .populate('sequence', 'name email role')
-      .populate('approvals.approverId', 'name email role');
-
-    const formattedExpense = {
-      expenseId: expense._id,
-      amount: expense.amount,
-      currency: expense.currency,
-      convertedAmount: expense.convertedAmount,
-      category: expense.category,
-      description: expense.description,
-      date: expense.date,
-      status: expense.status,
-      approvalFlowId: expense.approvalFlowId
-    };
-
-    const formattedApprovalFlow = approvalFlow ? {
-      workflow_id: approvalFlow._id,
-      expense_id: expense._id,
-      steps: approvalFlow.steps,
-      sequence: approvalFlow.sequence.map(user => user._id),
-      required_approvers: approvalFlow.required_approvers,
-      percentage: approvalFlow.percentage,
-      currentStep: approvalFlow.currentStep,
-      status: approvalFlow.status,
-      approvals: approvalFlow.approvals.map(approval => ({
-        approverId: approval.approverId._id,
-        decision: approval.decision,
-        comment: approval.comment,
-        timestamp: approval.timestamp
-      }))
-    } : null;
-
-    res.json({ 
-      success: true,
-      expense: formattedExpense, 
-      approvalFlow: formattedApprovalFlow 
-    });
+    res.json({ expense, approvalFlow: expense.approvalFlowId });
   } catch (err) {
-    console.error('Get Expense Error:', err);
-    res.status(500).json({ 
-      success: false,
-      message: err.message 
-    });
+    next(err);
   }
 };
 
-// Get overall team expenses (for managers)
-exports.getTeamExpenses = async (req, res) => {
+// ======================================================
+// ✅ 4. Get Pending Approvals (Manager/CFO/Admin)
+// ======================================================
+const getPendingApprovals = async (req, res, next) => {
   try {
     const user = req.user;
-    
-    // Find teams where the user is a manager
-    const teams = await Team.find({ managerId: user._id });
-    
-    if (teams.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'No teams found for this manager' 
-      });
-    }
 
-    // Get all team member IDs
-    const teamMemberIds = teams.flatMap(team => team.members);
-    
-    // Get expenses for all team members
-    const expenses = await Expense.find({ 
-      employeeId: { $in: teamMemberIds } 
-    }).populate('employeeId', 'name email');
+    // Find flows where user is part of approver sequence
+    const potentialFlows = await ApprovalFlow.find({
+      companyId: user.companyId,
+      sequence: user.userId,
+      status: { $in: ['PENDING', 'IN_PROGRESS'] }
+    });
 
-    // Calculate total team expenses
-    const totalExpenses = expenses.reduce((sum, expense) => sum + expense.convertedAmount, 0);
-    
-    // Group expenses by status
-    const expensesByStatus = expenses.reduce((acc, expense) => {
-      if (!acc[expense.status]) {
-        acc[expense.status] = [];
-      }
-      acc[expense.status].push(expense);
-      return acc;
-    }, {});
+    const flowIds = potentialFlows.map(flow => flow._id);
 
-    // Calculate totals by status
-    const totalsByStatus = {};
-    Object.keys(expensesByStatus).forEach(status => {
-      totalsByStatus[status] = expensesByStatus[status].reduce((sum, expense) => sum + expense.convertedAmount, 0);
+    const expenses = await Expense.find({
+      approvalFlowId: { $in: flowIds },
+      status: { $in: ['PENDING', 'UNDER_REVIEW'] }
+    })
+      .populate('employeeId', 'name email')
+      .populate({ path: 'approvalFlowId', select: 'sequence currentStep approvals' });
+
+    // Filter out already approved by this user
+    const expensesToApprove = expenses.filter(exp => {
+      const flow = exp.approvalFlowId;
+      if (!flow) return false;
+      const userDecision = flow.approvals?.some(a => a.approverId.toString() === user.userId.toString());
+      return !userDecision;
     });
 
     res.json({
-      success: true,
-      message: 'Team expenses retrieved successfully',
-      teams: teams.map(team => ({
-        id: team._id,
-        name: team.name,
-        memberCount: team.members.length
-      })),
-      totalExpenses,
-      expensesByStatus,
-      totalsByStatus,
-      expenses
+      message: 'Pending approvals retrieved successfully',
+      count: expensesToApprove.length,
+      expenses: expensesToApprove
     });
   } catch (err) {
-    console.error('Get Team Expenses Error:', err);
-    res.status(500).json({ 
-      success: false,
-      message: err.message 
-    });
+    next(err);
   }
 };
 
-// Get team expenses for a specific team
-exports.getTeamExpensesById = async (req, res) => {
+// ======================================================
+// 👥 5. Get Team Expenses (Manager)
+// ======================================================
+const getTeamExpenses = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const teams = await Team.find({ managerId: user.userId });
+
+    if (!teams.length) {
+      return res.status(404).json({ message: 'No teams found for this manager' });
+    }
+
+    const teamMemberIds = [...new Set(teams.flatMap(team => team.members.map(id => id.toString())))];
+
+    const expenses = await Expense.find({
+      employeeId: { $in: teamMemberIds },
+      companyId: user.companyId
+    }).populate('employeeId', 'name email');
+
+    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.convertedAmount, 0);
+
+    res.json({
+      message: 'Team expenses retrieved successfully',
+      teams: teams.map(t => ({
+        id: t._id,
+        name: t.name,
+        memberCount: t.members.length
+      })),
+      totalExpenses,
+      expenses
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ======================================================
+// 👤 6. Get Team Expenses by Team ID (Manager)
+// ======================================================
+const getTeamExpensesById = async (req, res, next) => {
   try {
     const { teamId } = req.params;
     const user = req.user;
 
-    // Verify the user is the manager of this team
-    const team = await Team.findOne({ _id: teamId, managerId: user._id });
-    if (!team) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Team not found or you are not the manager' 
-      });
-    }
-
-    // Get expenses for team members
-    const expenses = await Expense.find({ 
-      employeeId: { $in: team.members } 
-    }).populate('employeeId', 'name email');
-
-    // Calculate total team expenses
-    const totalExpenses = expenses.reduce((sum, expense) => sum + expense.convertedAmount, 0);
-    
-    // Group expenses by status
-    const expensesByStatus = expenses.reduce((acc, expense) => {
-      if (!acc[expense.status]) {
-        acc[expense.status] = [];
-      }
-      acc[expense.status].push(expense);
-      return acc;
-    }, {});
-
-    // Calculate totals by status
-    const totalsByStatus = {};
-    Object.keys(expensesByStatus).forEach(status => {
-      totalsByStatus[status] = expensesByStatus[status].reduce((sum, expense) => sum + expense.convertedAmount, 0);
+    const team = await Team.findOne({
+      _id: teamId,
+      managerId: user.userId,
+      companyId: user.companyId
     });
 
+    if (!team) {
+      return res.status(403).json({ message: 'Forbidden: Team not found or you are not the assigned manager.' });
+    }
+
+    const expenses = await Expense.find({
+      employeeId: { $in: team.members },
+      companyId: user.companyId
+    }).populate('employeeId', 'name email');
+
+    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.convertedAmount, 0);
+
     res.json({
-      success: true,
-      message: 'Team expenses retrieved successfully',
+      message: `Expenses for Team ${team.name} retrieved successfully`,
       team: {
         id: team._id,
         name: team.name,
         memberCount: team.members.length
       },
       totalExpenses,
-      expensesByStatus,
-      totalsByStatus,
       expenses
     });
   } catch (err) {
-    console.error('Get Team Expenses Error:', err);
-    res.status(500).json({ 
-      success: false,
-      message: err.message 
-    });
+    next(err);
   }
+};
+
+// ======================================================
+// 📦 Exports
+// ======================================================
+module.exports = {
+  submitExpense,
+  getMyExpenses,
+  getExpenseById,
+  getPendingApprovals,
+  getTeamExpenses,
+  getTeamExpensesById
 };
