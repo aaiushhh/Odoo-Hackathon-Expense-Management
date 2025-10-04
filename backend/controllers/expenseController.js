@@ -193,7 +193,6 @@ const getPendingApprovals = async (req, res, next) => {
     });
 
     res.json({
-      success: true,
       message: "Pending approvals retrieved successfully.",
       count: expensesToApprove.length,
       expenses: expensesToApprove,

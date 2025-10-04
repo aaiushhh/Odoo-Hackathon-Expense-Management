@@ -116,6 +116,8 @@ const signup = async (req, res, next) => {
   }
 };
 
+// ------------------------------------------------------------------
+
 /**
  * POST /api/auth/login
  * Logs in a user and returns a JWT.

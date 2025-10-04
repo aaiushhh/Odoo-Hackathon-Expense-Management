@@ -1,18 +1,18 @@
 // routes/utilsRoutes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
 // Middleware
-const { authenticateToken } = require('../middlewares/authMiddleware');
+const { authenticateToken } = require("../middlewares/authMiddleware");
 
 // Controllers
-const { 
-  parseReceipt, 
-  parseReceiptFile, 
-  convertCurrency, 
-  listCountries, 
-  upload 
-} = require('../controllers/utilsController');
+const {
+  parseReceipt,
+  parseReceiptFile,
+  convertCurrency,
+  listCountries,
+  upload,
+} = require("../controllers/utilsController");
 
 /**
  * -------------------------
@@ -21,10 +21,15 @@ const {
  */
 
 // Parse receipt from URL or text
-router.post('/ocr', authenticateToken, parseReceipt);
+router.post("/ocr", authenticateToken, parseReceipt);
 
 // Parse receipt from uploaded file
-router.post('/ocr/upload', authenticateToken, upload.single('receipt'), parseReceiptFile);
+router.post(
+  "/ocr/upload",
+  authenticateToken,
+  upload.single("receipt"),
+  parseReceiptFile
+);
 
 /**
  * -------------------------
@@ -33,9 +38,9 @@ router.post('/ocr/upload', authenticateToken, upload.single('receipt'), parseRec
  */
 
 // Convert currency
-router.get('/currency/convert', authenticateToken, convertCurrency);
+router.get("/currency/convert", authenticateToken, convertCurrency);
 
 // List supported countries/currencies
-router.get('/currency/countries', authenticateToken, listCountries);
+router.get("/currency/countries", authenticateToken, listCountries);
 
 module.exports = router;

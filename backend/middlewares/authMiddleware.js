@@ -1,18 +1,19 @@
 // middlewares/authMiddleware.js
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const JWT_SECRET = process.env.JWT_SECRET || 'your_default_secret_for_hackathon';
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+const JWT_SECRET =
+  process.env.JWT_SECRET || "your_default_secret_for_hackathon";
 
 /**
  * Middleware to authenticate JWT and attach full user object to req.user
  */
 const authenticateToken = async (req, res, next) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.header("Authorization")?.replace("Bearer ", "");
     if (!token) {
       return res.status(401).json({
         success: false,
-        message: 'Access denied. No token provided.'
+        message: "Access denied. No token provided.",
       });
     }
 
@@ -20,11 +21,11 @@ const authenticateToken = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     // Fetch full user from DB (exclude password)
-    const user = await User.findById(decoded.userId).select('-password');
+    const user = await User.findById(decoded.userId).select("-password");
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid token. User not found.'
+        message: "Invalid token. User not found.",
       });
     }
 
@@ -33,7 +34,7 @@ const authenticateToken = async (req, res, next) => {
   } catch (error) {
     res.status(403).json({
       success: false,
-      message: 'Invalid or expired token.'
+      message: "Invalid or expired token.",
     });
   }
 };
@@ -46,7 +47,9 @@ const authorizeRoles = (allowedRoles) => (req, res, next) => {
   if (!req.user || !allowedRoles.includes(req.user.role)) {
     return res.status(403).json({
       success: false,
-      message: `Forbidden. Role ${req.user ? req.user.role : 'None'} does not have permission.`
+      message: `Forbidden. Role ${
+        req.user ? req.user.role : "None"
+      } does not have permission.`,
     });
   }
   next();
@@ -56,10 +59,10 @@ const authorizeRoles = (allowedRoles) => (req, res, next) => {
  * Middleware to check if the user has the 'Admin' role
  */
 const isAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== 'Admin') {
+  if (!req.user || req.user.role !== "Admin") {
     return res.status(403).json({
       success: false,
-      message: 'Access Denied. Admin privileges required.'
+      message: "Access Denied. Admin privileges required.",
     });
   }
   next();
@@ -73,34 +76,39 @@ const isAdminOrManager = async (req, res, next) => {
   const { role, _id } = req.user;
   const targetUserId = req.params.userId || req.body.managerId;
 
-  if (role === 'Admin') return next();
+  if (role === "Admin") return next();
 
-  if (role === 'Manager') {
+  if (role === "Manager") {
     if (!targetUserId) {
       return res.status(400).json({
         success: false,
-        message: 'Target user ID is required for Manager authorization.'
+        message: "Target user ID is required for Manager authorization.",
       });
     }
 
-    const targetUser = await User.findById(targetUserId).select('managerId');
+    const targetUser = await User.findById(targetUserId).select("managerId");
     if (!targetUser) {
-      return res.status(404).json({ success: false, message: 'Target user not found.' });
+      return res
+        .status(404)
+        .json({ success: false, message: "Target user not found." });
     }
 
-    if (targetUser.managerId && targetUser.managerId.toString() === _id.toString()) {
+    if (
+      targetUser.managerId &&
+      targetUser.managerId.toString() === _id.toString()
+    ) {
       return next();
     }
 
     return res.status(403).json({
       success: false,
-      message: 'Access Denied. You are not the manager of this user.'
+      message: "Access Denied. You are not the manager of this user.",
     });
   }
 
   return res.status(403).json({
     success: false,
-    message: 'Access Denied. Insufficient permissions.'
+    message: "Access Denied. Insufficient permissions.",
   });
 };
 
@@ -108,5 +116,5 @@ module.exports = {
   authenticateToken,
   authorizeRoles,
   isAdmin,
-  isAdminOrManager
+  isAdminOrManager,
 };
