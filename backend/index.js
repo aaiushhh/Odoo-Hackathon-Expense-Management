@@ -13,6 +13,7 @@ const ApprovalFlow = require("./models/ApprovalFlow.js");
 
 const mongoose = require("mongoose");
 const dbUrl = process.env.MONGODB_URL;
+
 main()
   .then(() => {
     console.log("Connected to DB.");
