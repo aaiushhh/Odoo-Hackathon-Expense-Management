@@ -1,5 +1,9 @@
 const express = require("express");
-const { signup, login } = require("../controllers/authController");
+const {
+  signup,
+  login,
+  forgotPassword,
+} = require("../controllers/authController");
 const router = express.Router();
 const auth = require("../middlewares/authMiddleware"); // JWT middleware
 const { isAdmin } = require("../middlewares/roleMiddleware"); // Role-based check
@@ -10,5 +14,6 @@ router.get("/:expenseId", auth, isAdmin, getApprovalStatus);
 
 router.post("/signup", signup);
 router.post("/login", login);
+router.post("/forgot-password", forgotPassword);
 
 module.exports = router;
