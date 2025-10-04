@@ -11,8 +11,9 @@ const UserSchema = new Schema({
     required: true 
   },
   companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
+  companyCurrency: { type: String, default: 'USD', uppercase: true }, // Add company currency
   managerId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
-  teamId: { type: Schema.Types.ObjectId, ref: 'Team', default: null } // New
+  teamId: { type: Schema.Types.ObjectId, ref: 'Team', default: null }
 });
 
 const User = mongoose.model("User", UserSchema);

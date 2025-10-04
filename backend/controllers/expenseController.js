@@ -2,6 +2,7 @@ const Expense = require('../models/Expense');
 const ApprovalFlow = require('../models/ApprovalFlow');
 const Team = require('../models/Team');
 const User = require('../models/User');
+const Company = require('../models/Company');
 const currencyConverter = require('../utils/currencyConverter');
 
 // Create a new expense
@@ -9,14 +10,14 @@ exports.createExpense = async (req, res) => {
   try {
     const { amount, currency, category, description, date, receiptUrl } = req.body;
 
-    // Convert to company currency
-    const user = req.user;
-    const companyCurrency = user.companyCurrency || 'USD';
+    // Get company currency from Company model instead of user
+    const company = await Company.findById(req.user.companyId);
+    const companyCurrency = company?.currency || 'USD';
     const convertedAmount = await currencyConverter.convert(currency, companyCurrency, amount);
 
     const expense = await Expense.create({
-      employeeId: user._id,
-      companyId: user.companyId,
+      employeeId: req.user._id,
+      companyId: req.user.companyId,
       amount,
       currency,
       convertedAmount,
@@ -28,11 +29,16 @@ exports.createExpense = async (req, res) => {
     });
 
     res.status(201).json({
+      success: true,
       message: 'Expense created successfully',
       expense
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Create Expense Error:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: err.message 
+    });
   }
 };
 

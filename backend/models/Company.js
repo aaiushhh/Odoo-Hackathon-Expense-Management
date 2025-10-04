@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = require('mongoose');
-const companySchema = new Schema({
+const CompanySchema = new Schema({
     name: { type: String, required: true, unique: true, trim: true },
     country: { type: String, required: true, trim: true },
     currency: { type: String, required: true, trim: true, uppercase: true }, // e.g., USD, EUR
@@ -10,5 +10,5 @@ const companySchema = new Schema({
         required: true 
     },
 }, { timestamps: true });
-const Company = mongoose.model("Company", companySchema);
+const Company = mongoose.model("Company", CompanySchema);
 module.exports = Company;
