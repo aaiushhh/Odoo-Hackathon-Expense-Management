@@ -27,8 +27,18 @@ const UserSchema = new Schema(
       default: null,
     },
   },
+<<<<<<< HEAD
+  companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
+  companyCurrency: { type: String, default: 'USD', uppercase: true },
+  managerId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  teamId: { type: Schema.Types.ObjectId, ref: 'Team', default: null },
+  phone: { type: String, trim: true }, // Add phone field
+  department: { type: String, trim: true } // Add department field
+});
+=======
   { timestamps: true }
 );
+>>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
 
 const User = mongoose.model("User", UserSchema);
 

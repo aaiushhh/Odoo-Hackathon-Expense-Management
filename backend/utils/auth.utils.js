@@ -2,7 +2,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Ensure you have a strong secret in your .env file
+<<<<<<< HEAD
+const JWT_SECRET = process.env.JWT_SECRET || 'your_default_secret_for_hackathon';
+=======
 const JWT_SECRET = process.env.JWT_SECRET || 'your_default_secret_for_hackathon'; 
+>>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
 
 // --- Password Hashing ---
 const hashPassword = async (password) => {
