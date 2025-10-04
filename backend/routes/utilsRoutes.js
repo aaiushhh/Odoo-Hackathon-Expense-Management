@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middlewares/authMiddleware');
+const { authenticateToken } = require('../middlewares/authMiddleware');
 const { parseReceipt, convertCurrency, listCountries } = require('../controllers/utilsController');
 
-router.post('/ocr', auth, parseReceipt);
-router.get('/currency/convert', auth, convertCurrency);
-router.get('/countries', auth, listCountries);
+router.post('/ocr', authenticateToken, parseReceipt);
+router.get('/currency/convert', authenticateToken, convertCurrency);
+router.get('/countries', authenticateToken, listCountries);
 
 module.exports = router;

@@ -1,19 +1,41 @@
-// middlewares/authMiddleware.js
-const jwt = require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'your_default_secret_for_hackathon';
 
-module.exports = (req, res, next) => {
-  const token = req.header("Authorization")?.replace("Bearer ", "");
-  if (!token) {
-    return res
-      .status(401)
-      .json({ message: "Access denied. No token provided." });
-  }
+/**
+ * Middleware to verify JWT and attach user payload to req.user
+ */
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // attach user payload from token
+    if (!token) {
+        return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded; // Contains { userId, role, companyId }
+        next();
+    } catch (error) {
+        // Token is invalid or expired
+        return res.status(403).json({ message: 'Invalid or expired token.' });
+    }
+};
+
+/**
+ * Middleware to restrict access based on user role.
+ * @param {Array<String>} allowedRoles - e.g., ['Admin', 'Manager']
+ */
+const authorizeRoles = (allowedRoles) => (req, res, next) => {
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+        return res.status(403).json({ 
+            message: `Forbidden. Role ${req.user ? req.user.role : 'None'} does not have permission.` 
+        });
+    }
     next();
-  } catch (err) {
-    res.status(400).json({ message: "Invalid token" });
-  }
+};
+
+module.exports = {
+    authenticateToken,
+    authorizeRoles
 };

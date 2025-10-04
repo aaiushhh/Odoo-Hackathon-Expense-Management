@@ -14,7 +14,7 @@ const UserSchema = new Schema(
     password: { type: String, required: true, select: false }, // Don't return password by default
     role: {
       type: String,
-      enum: ["Admin", "Manager", "Employee"],
+      enum: ["Admin", "Manager", "Employee", "Director", "CFO"],
       required: true,
     },
     companyId: {

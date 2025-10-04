@@ -6,6 +6,7 @@ require("dotenv").config();
 const authRoutes = require("./routes/authRoutes");
 const expenseRoutes = require("./routes/expenseRoutes");
 const utilsRoutes = require("./routes/utilsRoutes");
+const companyRoutes = require("./routes/companyRoutes");
 const approvalRoutes = require("./routes/approvalRoutes");
 
 const app = express();
@@ -41,6 +42,7 @@ app.get("/", (req, res) =>
 app.use("/api/auth", authRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/utils", utilsRoutes);
+app.use("/api/company", companyRoutes);
 app.use("/api/approvalflow", approvalRoutes);
 
 // --- Global Error Handler ---
