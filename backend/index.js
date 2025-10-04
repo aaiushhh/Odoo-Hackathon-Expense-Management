@@ -25,6 +25,8 @@ const expenseRoutes = require('./routes/expenseRoutes');
 const utilsRoutes = require('./routes/utilsRoutes');
 const approvalRoutes = require('./routes/approvalRoutes');
 const teamRoutes = require('./routes/teamRoutes');
+const companyRoutes = require('./routes/companyRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 // Register routes
 app.use('/api/auth', authRoutes);
@@ -32,6 +34,8 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/utils', utilsRoutes);
 app.use('/api/approvalflow', approvalRoutes);
 app.use('/api/teams', teamRoutes);
+app.use('/api/company', companyRoutes);
+app.use('/api/users', userRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -43,12 +47,12 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ 
-    success: false, 
-    message: 'Route not found' 
-  });
-});
+// app.use(*, (req, res) => {
+//   res.status(404).json({ 
+//     success: false, 
+//     message: 'Route not found' 
+//   });
+// });
 
 // MongoDB Connection
 const dbUrl = process.env.MONGODB_URL || 'mongodb://localhost:27017/expense-management';

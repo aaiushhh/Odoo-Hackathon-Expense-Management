@@ -101,13 +101,14 @@ exports.convertCurrency = async (req, res) => {
     }
     
     const convertedAmount = await currencyConverter.convert(from, to, parseFloat(amount));
+    const rate = convertedAmount / parseFloat(amount);
     
     res.json({ 
       success: true, 
       from, 
       to, 
-      amount: parseFloat(amount),
-      convertedAmount 
+      rate: rate.toFixed(4),
+      convertedAmount: convertedAmount.toFixed(2)
     });
   } catch (err) {
     console.error('Currency Conversion Error:', err);

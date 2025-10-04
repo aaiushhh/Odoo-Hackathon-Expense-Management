@@ -1,15 +1,7 @@
-const vision = require('@google-cloud/vision');
+const Tesseract = require('tesseract.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-
-// Initialize Google Cloud Vision client
-const client = new vision.ImageAnnotatorClient({
-  // You can set credentials via environment variable GOOGLE_APPLICATION_CREDENTIALS
-  // or by providing the key file path directly
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS || './google-credentials.json',
-  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID
-});
 
 /**
  * Downloads an image from URL and saves it temporarily
@@ -38,19 +30,19 @@ async function downloadImage(imageUrl) {
 }
 
 /**
- * Extracts text from image using Google Cloud Vision OCR
+ * Extracts text from image using Tesseract.js OCR
  */
 async function extractTextFromImage(imagePath) {
   try {
-    const [result] = await client.textDetection(imagePath);
-    const detections = result.textAnnotations;
+    const { data: { text } } = await Tesseract.recognize(imagePath, 'eng', {
+      logger: m => console.log(m) // Optional: log progress
+    });
     
-    if (detections.length === 0) {
+    if (!text || text.trim().length === 0) {
       throw new Error('No text found in image');
     }
     
-    // Return the full text (first detection contains all text)
-    return detections[0].description;
+    return text;
   } catch (error) {
     throw new Error(`OCR processing failed: ${error.message}`);
   }
@@ -197,7 +189,7 @@ function parseReceiptText(text) {
 }
 
 /**
- * Main OCR parsing function
+ * Main OCR parsing function using Tesseract.js
  */
 exports.parse = async (imageUrl) => {
   let tempImagePath = null;
@@ -245,19 +237,35 @@ exports.parse = async (imageUrl) => {
 };
 
 /**
- * Alternative OCR using Tesseract.js (client-side OCR, no API key required)
- * This is a fallback option if Google Cloud Vision is not available
+ * Alternative OCR using Google Cloud Vision (if credentials are available)
  */
-exports.parseWithTesseract = async (imageUrl) => {
+exports.parseWithGoogleVision = async (imageUrl) => {
   try {
-    // This would require tesseract.js to be installed
-    // const Tesseract = require('tesseract.js');
-    // const { data: { text } } = await Tesseract.recognize(imageUrl, 'eng');
-    // return parseReceiptText(text);
+    const vision = require('@google-cloud/vision');
+    const client = new vision.ImageAnnotatorClient({
+      keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS || './google-credentials.json',
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID
+    });
+
+    const tempImagePath = await downloadImage(imageUrl);
+    const [result] = await client.textDetection(tempImagePath);
+    const detections = result.textAnnotations;
     
-    throw new Error('Tesseract.js not implemented - use Google Cloud Vision instead');
+    if (detections.length === 0) {
+      throw new Error('No text found in image');
+    }
+    
+    const extractedText = detections[0].description;
+    const parsedData = parseReceiptText(extractedText);
+    
+    // Clean up
+    if (fs.existsSync(tempImagePath)) {
+      fs.unlinkSync(tempImagePath);
+    }
+    
+    return parsedData;
   } catch (error) {
-    throw new Error(`Tesseract OCR failed: ${error.message}`);
+    throw new Error(`Google Vision OCR failed: ${error.message}`);
   }
 };
   
