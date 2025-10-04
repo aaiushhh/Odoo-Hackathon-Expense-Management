@@ -1,58 +1,50 @@
-// routes/companyAndUserRoutes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-// Controllers
+// User-related imports
 const {
   getUsers,
   createUser,
   updateUser,
-  sendPassword
-} = require('../controllers/userController');
+  sendPassword,
+} = require("../controllers/userController");
 
+// Company-related imports
 const {
   getCompany,
-  updateCompany
-} = require('../controllers/companyController');
+  updateCompany,
+} = require("../controllers/companyController");
 
-// Middlewares
+// Middleware imports
 const {
   authenticateToken,
   authorizeRoles,
-  isAdmin
-} = require('../middlewares/authMiddleware');
+} = require("../middlewares/authMiddleware");
 
-/**
- * -------------------------
- * Company Routes
- * -------------------------
- */
+// All company/user routes require authentication and Admin role
+router.use(authenticateToken);
+router.use(authorizeRoles(["Admin"]));
 
-// GET company info (any authenticated user)
-router.get('/company', authenticateToken, getCompany);
+// --- User Management Routes ---
 
-// PUT update company info (Admin only)
-router.put('/company', authenticateToken, isAdmin, updateCompany);
+// Fetch all users & Create new user
+router
+  .route("/users")
+  .get(getUsers) // GET /api/company/users
+  .post(createUser); // POST /api/company/users
 
-/**
- * -------------------------
- * User Routes (Admin only)
- * -------------------------
- */
+// Update user role/manager
+router.route("/users/:id").put(updateUser); // PUT /api/company/users/:id
 
-// Apply authentication + Admin role for all user routes
-router.use('/users', authenticateToken, authorizeRoles(['Admin']));
+// Send/Reset Password
+router.route("/users/:id/reset-password").post(sendPassword); // POST /api/company/users/:id/reset-password
 
-// GET all users in company
-router.get('/users', getUsers);
+// --- Company Profile Routes ---
 
-// POST create new user
-router.post('/users', createUser);
+// Get company details (Admin only, as per the router.use above)
+router.get("/", getCompany);
 
-// PUT update user role/manager
-router.put('/users/:id', updateUser);
-
-// POST reset/send password
-router.post('/users/:id/reset-password', sendPassword);
+// Update company details (Admin only, as per the router.use above)
+router.put("/", updateCompany);
 
 module.exports = router;

@@ -11,7 +11,7 @@ const UserSchema = new Schema(
       trim: true,
       lowercase: true,
     },
-    password: { type: String, required: true, select: false }, // Don't return password by default
+    password: { type: String, required: true, select: false },
     role: {
       type: String,
       enum: ["Admin", "Manager", "Employee", "Director", "CFO"],
@@ -20,25 +20,31 @@ const UserSchema = new Schema(
     companyId: {
       type: Schema.Types.ObjectId,
       ref: "Company",
+      required: true,
     },
     managerId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
+    // The following fields have been added by resolving the merge conflict
+    // and correctly placing them inside the schema object.
+    teamId: {
+      type: Schema.Types.ObjectId,
+      ref: "Team",
+      default: null,
+    },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    department: {
+      type: String,
+      trim: true,
+    },
   },
-<<<<<<< HEAD
-  companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
-  companyCurrency: { type: String, default: 'USD', uppercase: true },
-  managerId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
-  teamId: { type: Schema.Types.ObjectId, ref: 'Team', default: null },
-  phone: { type: String, trim: true }, // Add phone field
-  department: { type: String, trim: true } // Add department field
-});
-=======
   { timestamps: true }
 );
->>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
 
 const User = mongoose.model("User", UserSchema);
 

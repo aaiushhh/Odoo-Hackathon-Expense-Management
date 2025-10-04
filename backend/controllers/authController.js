@@ -7,7 +7,7 @@ const {
   generateToken,
   generateRandomPassword,
 } = require("../utils/auth.utils");
-const { sendEmail } = require("../utils/email.utils"); // Add this line
+const { sendEmail } = require("../utils/email.utils");
 
 /**
  * POST /api/auth/signup
@@ -39,70 +39,49 @@ const signup = async (req, res, next) => {
     ) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ message: "All fields are required." });
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required.",
+      });
     }
 
-        // 2. Check for existing User (by email)
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            await session.abortTransaction();
-            session.endSession();
-<<<<<<< HEAD
-            return res.status(409).json({ 
-                success: false,
-                message: 'User with this email already exists.' 
-            });
-=======
-            return res.status(409).json({ message: 'User with this email already exists.' });
->>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
-        }
+    // 2. Check for existing User (by email)
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(409).json({
+        success: false,
+        message: "User with this email already exists.",
+      });
+    }
 
     // 3. Hash Password
     const hashedPassword = await hashPassword(password);
 
-<<<<<<< HEAD
-=======
-        // --- Core Fix: Create Admin User FIRST to get its ID ---
-        
->>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
-        // 4. Create Admin User
-        const adminUser = new User({
-            name,
-            email,
-            password: hashedPassword,
-<<<<<<< HEAD
-            role: 'Admin',
-        });
-        await adminUser.save({ session });
-        
-        // 5. Create Company
-=======
-            role: 'Admin', // Hardcoded role for the initial user
-            // companyId is temporarily null
-        });
-        await adminUser.save({ session });
-        
-        // 5. Create Company, using the Admin's newly created _id
->>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
-        const newCompany = new Company({
-            name: companyName,
-            country: companyCountry,
-            currency: companyCurrency.toUpperCase(),
-<<<<<<< HEAD
-            adminId: adminUser._id,
-=======
-            adminId: adminUser._id, // ✅ Validation is satisfied here
->>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
-        });
-        await newCompany.save({ session });
-        
-        // 6. Update Admin User with the new companyId
-        adminUser.companyId = newCompany._id;
-<<<<<<< HEAD
-        await adminUser.save({ session });
-=======
-        await adminUser.save({ session }); // Save the updated Admin document
->>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
+    // --- Core Logic: Create Admin User FIRST to get its ID ---
+
+    // 4. Create Admin User
+    const adminUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      role: "Admin", // Hardcoded role for the initial user
+    });
+    await adminUser.save({ session });
+
+    // 5. Create Company, using the Admin's newly created _id
+    const newCompany = new Company({
+      name: companyName,
+      country: companyCountry,
+      currency: companyCurrency.toUpperCase(),
+      adminId: adminUser._id,
+    });
+    await newCompany.save({ session });
+
+    // 6. Update Admin User with the new companyId
+    adminUser.companyId = newCompany._id;
+    await adminUser.save({ session });
 
     // 7. Commit Transaction
     await session.commitTransaction();
@@ -146,22 +125,28 @@ const login = async (req, res, next) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email and password are required." });
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required.",
+      });
     }
 
     // 1. Find user, explicitly select password
-    // We use .select('+password') because password has select: false in the schema
     const user = await User.findOne({ email }).select("+password");
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials." });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials.",
+      });
     }
 
     // 2. Compare password
     const isMatch = await comparePassword(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials." });
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials.",
+      });
     }
 
     // 3. Generate Token
@@ -189,6 +174,10 @@ const login = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/auth/forgot-password
+ * Generates a new password and emails it to the user.
+ */
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -199,12 +188,10 @@ const forgotPassword = async (req, res, next) => {
     const user = await User.findOne({ email });
     if (!user) {
       // Send a success message even if the user is not found to prevent email enumeration
-      return res
-        .status(200)
-        .json({
-          message:
-            "If a user with that email exists, a new password has been sent.",
-        });
+      return res.status(200).json({
+        message:
+          "If a user with that email exists, a new password has been sent.",
+      });
     }
 
     // 1. Generate new password

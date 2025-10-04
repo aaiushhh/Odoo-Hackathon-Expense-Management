@@ -1,32 +1,37 @@
-// controllers/expenseController.js
-const mongoose = require('mongoose');
-const Expense = require('../models/Expense');
-const ApprovalFlow = require('../models/ApprovalFlow');
-const Team = require('../models/Team');
-const User = require('../models/User');
-const Company = require('../models/Company');
-const currencyConverter = require('../utils/currencyConverter');
+const Expense = require("../models/Expense");
+const ApprovalFlow = require("../models/ApprovalFlow");
+const Team = require("../models/Team");
+const User = require("../models/User");
+const Company = require("../models/Company");
+const currencyConverter = require("../utils/currencyConverter");
+const mongoose = require("mongoose");
 
 // ======================================================
-// 🧾 1. Submit New Expense (Employee)
+// ✅ POST /api/expenses - Submit a New Expense
 // ======================================================
 const submitExpense = async (req, res, next) => {
+  // Start a transaction for atomic operation (Expense + ApprovalFlow)
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
-    const { amount, currency, category, description, date, receiptUrl } = req.body;
-    const user = req.user;
+    const { amount, currency, category, description, date, receiptUrl } =
+      req.body;
+    const user = req.user; // User object from JWT payload { userId, companyId, role }
 
-    // 1️⃣ Fetch company currency
+    // 1. Fetch Company Data (for base currency)
     const company = await Company.findById(user.companyId).session(session);
     if (!company) throw new Error("Company not found.");
-    const companyCurrency = company.currency || 'USD';
+    const companyCurrency = company.currency;
 
-    // 2️⃣ Convert currency
-    const convertedAmount = await currencyConverter.convert(currency, companyCurrency, amount);
+    // 2. Currency Conversion
+    const convertedAmount = await currencyConverter.convert(
+      currency,
+      companyCurrency,
+      amount
+    );
 
-    // 3️⃣ Create Expense
+    // 3. Create Expense Document
     const expense = new Expense({
       employeeId: user.userId,
       companyId: user.companyId,
@@ -37,53 +42,62 @@ const submitExpense = async (req, res, next) => {
       description,
       date,
       receiptUrl,
-      status: 'PENDING'
+      status: "PENDING",
     });
     await expense.save({ session });
 
-    // 4️⃣ Build Approval Flow dynamically
-    const employee = await User.findById(user.userId).select('managerId').session(session);
-    const managerId = employee?.managerId;
+    // 4. Determine Dynamic Approval Flow (Placeholder Logic)
+    const employeeRecord = await User.findById(user.userId)
+      .select("managerId")
+      .session(session);
+    const managerId = employeeRecord?.managerId;
 
-    const higherRoles = ['Manager', 'CFO', 'Director', 'Admin'];
-    const approvers = await User.find({
+    const defaultApprovers = await User.find({
       companyId: user.companyId,
-      role: { $in: higherRoles }
-    }).select('_id').session(session);
+      role: { $in: ["Manager", "CFO", "Director", "Admin"] },
+    })
+      .select("_id")
+      .session(session);
 
-    const approverIds = approvers.map(u => u._id);
+    const defaultApproverIds = defaultApprovers.map((u) => u._id);
+
     let sequence = [];
+    if (managerId) {
+      sequence.push(managerId);
+    }
+    sequence = [
+      ...sequence,
+      ...defaultApproverIds.filter(
+        (id) => !managerId || id.toString() !== managerId.toString()
+      ),
+    ];
 
-    if (managerId) sequence.push(managerId);
-    sequence = [...sequence, ...approverIds.filter(id => !managerId || id.toString() !== managerId.toString())];
-
-    // 5️⃣ Create ApprovalFlow document
+    // 5. Create ApprovalFlow Document
     const approvalFlow = new ApprovalFlow({
       expense_id: expense._id,
       companyId: user.companyId,
-      steps: [
-        { stepNumber: 1, role: managerId ? 'Manager' : 'CFO' },
-        { stepNumber: 2, role: 'Admin' }
-      ],
-      sequence,
+      steps: [{ stepNumber: 1, role: managerId ? "Manager" : "CFO" }],
+      sequence: sequence,
       required_approvers: [],
-      percentage: 100,
+      percentage: 60,
       currentStep: 1,
-      status: 'PENDING'
+      status: "PENDING",
     });
     await approvalFlow.save({ session });
 
-    // 6️⃣ Link approval flow to expense
+    // 6. Link ApprovalFlow to Expense
     expense.approvalFlowId = approvalFlow._id;
     await expense.save({ session });
 
+    // 7. Commit Transaction
     await session.commitTransaction();
     session.endSession();
 
     res.status(201).json({
-      message: 'Expense submitted and approval flow initiated successfully',
+      success: true,
+      message: "Expense submitted and approval flow initiated successfully",
       expense,
-      approvalFlow
+      approvalFlow,
     });
   } catch (err) {
     await session.abortTransaction();
@@ -93,76 +107,96 @@ const submitExpense = async (req, res, next) => {
 };
 
 // ======================================================
-// 👤 2. Get My Expenses (Employee)
+// ✅ GET /api/expenses/mine - Get My Expenses
 // ======================================================
 const getMyExpenses = async (req, res, next) => {
   try {
     const expenses = await Expense.find({ employeeId: req.user.userId })
-      .populate('approvalFlowId')
+      .populate("approvalFlowId")
       .sort({ date: -1 });
 
-    res.json({ expenses });
+    res.json({
+      success: true,
+      expenses,
+    });
   } catch (err) {
     next(err);
   }
 };
 
 // ======================================================
-// 🔍 3. Get Expense by ID (Employee/Admin)
+// ✅ GET /api/expenses/:expenseId - Get a Single Expense
 // ======================================================
 const getExpenseById = async (req, res, next) => {
   try {
     const { expenseId } = req.params;
     const user = req.user;
 
-    const expense = await Expense.findById(expenseId).populate('approvalFlowId');
-    if (!expense) return res.status(404).json({ message: 'Expense not found' });
+    const expense = await Expense.findById(expenseId).populate(
+      "approvalFlowId"
+    );
 
-    if (expense.employeeId.toString() !== user.userId.toString() && user.role !== 'Admin') {
-      return res.status(403).json({ message: 'Forbidden: You do not own this expense.' });
+    if (!expense) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Expense not found" });
     }
 
-    res.json({ expense, approvalFlow: expense.approvalFlowId });
+    // Security check: Employee can only view their own expense unless they are an Admin or Manager
+    if (
+      expense.employeeId.toString() !== user.userId.toString() &&
+      !["Admin", "Manager"].includes(user.role)
+    ) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    res.json({ success: true, expense, approvalFlow: expense.approvalFlowId });
   } catch (err) {
     next(err);
   }
 };
 
 // ======================================================
-// ✅ 4. Get Pending Approvals (Manager/CFO/Admin)
+// ✅ GET /api/expenses/pending - Get Pending Approvals
 // ======================================================
 const getPendingApprovals = async (req, res, next) => {
   try {
     const user = req.user;
 
-    // Find flows where user is part of approver sequence
     const potentialFlows = await ApprovalFlow.find({
       companyId: user.companyId,
       sequence: user.userId,
-      status: { $in: ['PENDING', 'IN_PROGRESS'] }
+      status: { $in: ["PENDING", "IN_PROGRESS"] },
     });
 
-    const flowIds = potentialFlows.map(flow => flow._id);
+    const pendingFlowIds = potentialFlows.map((flow) => flow._id);
 
-    const expenses = await Expense.find({
-      approvalFlowId: { $in: flowIds },
-      status: { $in: ['PENDING', 'UNDER_REVIEW'] }
+    let pendingExpenses = await Expense.find({
+      approvalFlowId: { $in: pendingFlowIds },
+      status: { $in: ["PENDING", "UNDER_REVIEW"] },
     })
-      .populate('employeeId', 'name email')
-      .populate({ path: 'approvalFlowId', select: 'sequence currentStep approvals' });
+      .populate("employeeId", "name email")
+      .populate({
+        path: "approvalFlowId",
+        select: "sequence currentStep approvals",
+      });
 
-    // Filter out already approved by this user
-    const expensesToApprove = expenses.filter(exp => {
-      const flow = exp.approvalFlowId;
+    const expensesToApprove = pendingExpenses.filter((expense) => {
+      const flow = expense.approvalFlowId;
       if (!flow) return false;
-      const userDecision = flow.approvals?.some(a => a.approverId.toString() === user.userId.toString());
+
+      const userDecision = flow.approvals.some(
+        (a) => a.approverId.toString() === user.userId.toString()
+      );
+
       return !userDecision;
     });
 
     res.json({
-      message: 'Pending approvals retrieved successfully',
+      success: true,
+      message: "Pending approvals retrieved successfully.",
       count: expensesToApprove.length,
-      expenses: expensesToApprove
+      expenses: expensesToApprove,
     });
   } catch (err) {
     next(err);
@@ -170,75 +204,62 @@ const getPendingApprovals = async (req, res, next) => {
 };
 
 // ======================================================
-// 👥 5. Get Team Expenses (Manager)
+// ✅ GET /api/expenses/team - Get All Team Expenses
 // ======================================================
 const getTeamExpenses = async (req, res, next) => {
   try {
     const user = req.user;
+
     const teams = await Team.find({ managerId: user.userId });
 
-    if (!teams.length) {
-      return res.status(404).json({ message: 'No teams found for this manager' });
+    if (teams.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No teams found for this manager",
+      });
     }
 
-    const teamMemberIds = [...new Set(teams.flatMap(team => team.members.map(id => id.toString())))];
+    const teamMemberIds = teams.flatMap((team) => team.members);
 
     const expenses = await Expense.find({
       employeeId: { $in: teamMemberIds },
-      companyId: user.companyId
-    }).populate('employeeId', 'name email');
+      companyId: user.companyId,
+    }).populate("employeeId", "name email");
 
-    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.convertedAmount, 0);
+    // ... (rest of the calculation and formatting logic) ...
+    const totalExpenses = expenses.reduce(
+      (sum, expense) => sum + expense.convertedAmount,
+      0
+    );
 
-    res.json({
-      message: 'Team expenses retrieved successfully',
-      teams: teams.map(t => ({
-        id: t._id,
-        name: t.name,
-        memberCount: t.members.length
-      })),
-      totalExpenses,
-      expenses
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+    const expensesByStatus = expenses.reduce((acc, expense) => {
+      if (!acc[expense.status]) {
+        acc[expense.status] = [];
+      }
+      acc[expense.status].push(expense);
+      return acc;
+    }, {});
 
-// ======================================================
-// 👤 6. Get Team Expenses by Team ID (Manager)
-// ======================================================
-const getTeamExpensesById = async (req, res, next) => {
-  try {
-    const { teamId } = req.params;
-    const user = req.user;
-
-    const team = await Team.findOne({
-      _id: teamId,
-      managerId: user.userId,
-      companyId: user.companyId
+    const totalsByStatus = {};
+    Object.keys(expensesByStatus).forEach((status) => {
+      totalsByStatus[status] = expensesByStatus[status].reduce(
+        (sum, expense) => sum + expense.convertedAmount,
+        0
+      );
     });
 
-    if (!team) {
-      return res.status(403).json({ message: 'Forbidden: Team not found or you are not the assigned manager.' });
-    }
-
-    const expenses = await Expense.find({
-      employeeId: { $in: team.members },
-      companyId: user.companyId
-    }).populate('employeeId', 'name email');
-
-    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.convertedAmount, 0);
-
     res.json({
-      message: `Expenses for Team ${team.name} retrieved successfully`,
-      team: {
+      success: true,
+      message: "Team expenses retrieved successfully",
+      teams: teams.map((team) => ({
         id: team._id,
         name: team.name,
-        memberCount: team.members.length
-      },
+        memberCount: team.members.length,
+      })),
       totalExpenses,
-      expenses
+      expensesByStatus,
+      totalsByStatus,
+      expenses,
     });
   } catch (err) {
     next(err);
@@ -246,13 +267,12 @@ const getTeamExpensesById = async (req, res, next) => {
 };
 
 // ======================================================
-// 📦 Exports
+// ✅ Exports
 // ======================================================
 module.exports = {
   submitExpense,
   getMyExpenses,
-  getExpenseById,
   getPendingApprovals,
+  getExpenseById,
   getTeamExpenses,
-  getTeamExpensesById
 };

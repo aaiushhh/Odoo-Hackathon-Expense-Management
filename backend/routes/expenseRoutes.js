@@ -1,60 +1,39 @@
-// routes/expenseRoutes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
+const { authenticateToken } = require("../middlewares/authMiddleware");
 
-// Controllers
+// Import all necessary controller functions
 const {
   submitExpense,
-  createExpense,
   getMyExpenses,
+  getExpenseById,
   getPendingApprovals,
   getTeamExpenses,
   getTeamExpensesById,
-  getExpenseById
-} = require('../controllers/expenseController');
+} = require("../controllers/expenseController");
 
-// Middleware
-const { authenticateToken } = require('../middlewares/authMiddleware');
-
-// Apply authentication to all routes
+// Apply authentication middleware to all routes in this file
 router.use(authenticateToken);
 
-/**
- * -------------------------
- * Expense Submission
- * -------------------------
- */
+// --- Expense Submission ---
+// POST /api/expenses
+router.post("/", submitExpense);
 
-// POST /api/expenses - submit a new expense
-router.post('/', submitExpense); 
-// Optional: If using legacy 'createExpense' method, can alias
-router.post('/create', createExpense);
+// --- Employee Views ---
+// GET /api/expenses/mine
+router.get("/mine", getMyExpenses);
 
-/**
- * -------------------------
- * Employee Views
- * -------------------------
- */
+// GET /api/expenses/:expenseId
+router.get("/:expenseId", getExpenseById);
 
-// GET /api/expenses/mine - get current user's expenses
-router.get('/mine', getMyExpenses);
+// --- Manager/Approver Views ---
+// GET /api/expenses/pending (Approver)
+router.get("/pending", getPendingApprovals);
 
-// GET /api/expenses/:expenseId - get specific expense
-router.get('/:expenseId', getExpenseById);
+// GET /api/expenses/team (Manager)
+router.get("/team", getTeamExpenses);
 
-/**
- * -------------------------
- * Manager / Approver Views
- * -------------------------
- */
-
-// GET /api/expenses/pending - get pending approvals for approvers
-router.get('/pending', getPendingApprovals);
-
-// GET /api/expenses/team - get all team expenses for manager
-router.get('/team', getTeamExpenses);
-
-// GET /api/expenses/team/:teamId - get expenses for a specific team
-router.get('/team/:teamId', getTeamExpensesById);
+// GET /api/expenses/team/:teamId (Manager)
+router.get("/team/:teamId", getTeamExpensesById);
 
 module.exports = router;
