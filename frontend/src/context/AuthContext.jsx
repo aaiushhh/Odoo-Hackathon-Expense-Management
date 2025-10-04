@@ -14,13 +14,7 @@ export const AuthProvider = ({ children }) => {
         // Simple logic to set user details from localStorage or verify token (optional complexity)
         const storedUser = localStorage.getItem('user');
         if (storedUser && token) {
-            try {
-                setUser(JSON.parse(storedUser));
-            } catch (error) {
-                console.error('Failed to parse stored user:', error);
-                localStorage.removeItem('user');
-                setUser(null);
-            }
+            setUser(JSON.parse(storedUser));
         }
         setIsLoading(false);
     }, [token]);

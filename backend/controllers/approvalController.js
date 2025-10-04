@@ -1,9 +1,14 @@
+<<<<<<< HEAD
 const ApprovalFlow = require('../models/ApprovalFlow');
 const Expense = require('../models/Expense');
+=======
+const ApprovalFlow = require("../models/ApprovalFlow");
+>>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
 
 exports.getApprovalStatus = async (req, res) => {
   try {
     const { expenseId } = req.params;
+<<<<<<< HEAD
     
     // First check if the expense exists and user has access
     const expense = await Expense.findById(expenseId);
@@ -55,6 +60,12 @@ exports.getApprovalStatus = async (req, res) => {
       success: true,
       ...formattedApprovalFlow 
     });
+=======
+    const approvalFlow = await ApprovalFlow.findOne({ expense_id: expenseId });
+    if (!approvalFlow)
+      return res.status(404).json({ message: "Approval flow not found" });
+    res.json(approvalFlow);
+>>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
   } catch (err) {
     console.error('Get Approval Status Error:', err);
     res.status(500).json({ 

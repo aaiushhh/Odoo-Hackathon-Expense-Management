@@ -10,10 +10,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+<<<<<<< HEAD
     "@google-cloud/vision": "^4.3.3",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
+=======
+    "axios": "^1.12.2",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+>>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // This file will contain all access control logic
 
 const { ObjectId } = require('mongoose').Types;
@@ -93,3 +94,24 @@ module.exports = {
     isAdminOrManager,
     authenticate 
 };
+=======
+// middlewares/authMiddleware.js
+const jwt = require("jsonwebtoken");
+
+module.exports = (req, res, next) => {
+  const token = req.header("Authorization")?.replace("Bearer ", "");
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Access denied. No token provided." });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // attach user payload from token
+    next();
+  } catch (err) {
+    res.status(400).json({ message: "Invalid token" });
+  }
+};
+>>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
