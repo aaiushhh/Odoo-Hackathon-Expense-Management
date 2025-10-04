@@ -1,7 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-<<<<<<< HEAD
 const path = require("path");
 const fs = require("fs");
 require("dotenv").config();
@@ -148,4 +147,4 @@ mongoose
     console.error("MongoDB connection error:", err);
     process.exit(1);
   });
->>>>>>> 763fc7dbfb2a8fa88285739a062288fa22ad2b2e
+
