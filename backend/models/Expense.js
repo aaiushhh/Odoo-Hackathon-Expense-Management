@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-
+const { Schema } = require('mongoose');
 const ExpenseSchema = new Schema({
     employeeId: { 
         type: Schema.Types.ObjectId, 

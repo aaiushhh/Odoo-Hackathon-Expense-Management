@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-
-const CompanySchema = new Schema({
+const { Schema } = require('mongoose');
+const companySchema = new Schema({
     name: { type: String, required: true, unique: true, trim: true },
     country: { type: String, required: true, trim: true },
     currency: { type: String, required: true, trim: true, uppercase: true }, // e.g., USD, EUR

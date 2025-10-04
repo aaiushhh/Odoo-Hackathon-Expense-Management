@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { Schema } = require('mongoose'); // Add this line
 
 const ApprovalFlowSchema = new Schema({
     // workflow_id is now the MongoDB _id

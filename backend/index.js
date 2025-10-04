@@ -1,26 +1,29 @@
 const express = require("express");
-const app = express();
-const port = 3000;
+const mongoose = require("mongoose");
+require("dotenv").config();
 
-const dotenv = require("dotenv");
-dotenv.config();
+const authRoutes = require("./routes/authRoutes");
+const expenseRoutes = require("./routes/expenseRoutes");
+const utilsRoutes = require("./routes/utilsRoutes");
+const approvalRoutes = require("./routes/approvalRoutes");
+
+const app = express();
 app.use(express.json());
 
-const mongoose = require("mongoose");
-const dbUrl = process.env.MONGODB_URL;
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/utils", utilsRoutes);
+app.use("/api/approvalflow", approvalRoutes);
 
-main()
-  .then(() => {
-    console.log("Connected to DB.");
+// MongoDB Connection
+mongoose
+  .connect(process.env.MONGODB_URL, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
   })
-  .catch((err) => {
-    console.log(err);
-  });
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.log(err));
 
-async function main() {
-  await mongoose.connect(dbUrl);
-}
-
-app.get("/", (req, res) => res.send("Hello World!"));
-
-app.listen(port, () => console.log(`Example app listening on port ${port}!`));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
