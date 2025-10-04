@@ -53,7 +53,7 @@ const authorizeRoles = (allowedRoles) => (req, res, next) => {
 };
 
 /**
- * Middleware to check if the user is an Admin
+ * Middleware to check if the user has the 'Admin' role
  */
 const isAdmin = (req, res, next) => {
   if (!req.user || req.user.role !== 'Admin') {
@@ -66,8 +66,8 @@ const isAdmin = (req, res, next) => {
 };
 
 /**
- * Middleware to check if the user is Admin or Manager of target user
- * For routes that involve specific user actions (update/view)
+ * Middleware to check if the user is an Admin OR Manager of a target user
+ * Useful for updating/viewing specific user profile
  */
 const isAdminOrManager = async (req, res, next) => {
   const { role, _id } = req.user;
@@ -76,7 +76,6 @@ const isAdminOrManager = async (req, res, next) => {
   if (role === 'Admin') return next();
 
   if (role === 'Manager') {
-    // Fetch the target user and check if current user is their manager
     if (!targetUserId) {
       return res.status(400).json({
         success: false,
