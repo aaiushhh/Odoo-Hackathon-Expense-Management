@@ -6,12 +6,18 @@ const {
   parseReceiptFile, 
   convertCurrency, 
   listCountries,
-  upload 
+  upload,
+  testOCR,
+  serveTempImage
 } = require('../controllers/utilsController');
 
 // OCR endpoints
 router.post('/ocr', authenticate, parseReceipt); // Parse from URL
 router.post('/ocr/upload', authenticate, upload.single('receipt'), parseReceiptFile); // Parse from file upload
+router.get('/ocr/test', authenticate, testOCR); // Test OCR functionality
+
+// Temporary image serving (no auth required for internal use)
+router.get('/temp-image/:filename', serveTempImage);
 
 // Currency endpoints
 router.get('/currency/convert', authenticate, convertCurrency);

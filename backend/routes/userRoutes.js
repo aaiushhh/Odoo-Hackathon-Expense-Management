@@ -5,12 +5,16 @@ const {
   createEmployee,
   getProfile, 
   updateProfile,
-  getCompanyEmployees 
+  getCompanyEmployees,
+  updateEmployee,
+  sendPasswordReset
 } = require('../controllers/userController');
 
 router.get('/profile', authenticate, getProfile);
 router.put('/profile', authenticate, updateProfile);
-router.post('/employees', authenticate, isAdmin, createEmployee); // Admin only
-router.get('/employees', authenticate, getCompanyEmployees); // Admin/Manager
+router.post('/employees', authenticate, isAdmin, createEmployee);
+router.get('/employees', authenticate, getCompanyEmployees);
+router.put('/employees/:userId', authenticate, isAdmin, updateEmployee);
+router.post('/employees/:userId/reset-password', authenticate, isAdmin, sendPasswordReset);
 
 module.exports = router;

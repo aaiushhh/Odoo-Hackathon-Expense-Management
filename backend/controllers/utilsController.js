@@ -3,25 +3,44 @@ const currencyConverter = require('../utils/currencyConverter');
 const axios = require('axios');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+const express = require('express');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '..', 'temp'));
+    const tempDir = path.join(__dirname, '..', 'temp');
+    // Ensure temp directory exists
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    cb(null, tempDir);
   },
   filename: (req, file, cb) => {
-    cb(null, `receipt_${Date.now()}_${file.originalname}`);
+    // Preserve original extension
+    const ext = path.extname(file.originalname);
+    cb(null, `receipt_${Date.now()}${ext}`);
   }
 });
 
 const upload = multer({ 
   storage: storage,
   fileFilter: (req, file, cb) => {
-    // Accept only image files
-    if (file.mimetype.startsWith('image/')) {
+    // Accept only image files with specific extensions
+    const allowedMimes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/gif',
+      'image/bmp',
+      'image/tiff',
+      'image/webp'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'), false);
+      cb(new Error(`File type ${file.mimetype} not allowed. Please upload JPG, PNG, GIF, BMP, TIFF, or WebP images.`), false);
     }
   },
   limits: {
@@ -56,7 +75,7 @@ exports.parseReceipt = async (req, res) => {
   }
 };
 
-// OCR receipt from uploaded file
+// OCR receipt from uploaded file - NEW APPROACH: Host temporarily as URL
 exports.parseReceiptFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -67,12 +86,32 @@ exports.parseReceiptFile = async (req, res) => {
     }
     
     const imagePath = req.file.path;
-    const parsed = await ocrHandler.parse(imagePath);
+    const fileName = path.basename(imagePath);
     
-    // Clean up uploaded file
-    const fs = require('fs');
+    console.log('Processing uploaded file:', imagePath);
+    console.log('File details:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      filename: fileName
+    });
+    
+    // Create a temporary URL for the uploaded image
+    const tempImageUrl = `http://localhost:3000/api/utils/temp-image/${fileName}`;
+    
+    console.log('Temporary image URL:', tempImageUrl);
+    
+    // Use the existing URL-based OCR function
+    const parsed = await ocrHandler.parse(tempImageUrl);
+    
+    // Clean up uploaded file after processing
     if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
+      try {
+        fs.unlinkSync(imagePath);
+        console.log('Cleaned up uploaded file:', imagePath);
+      } catch (cleanupError) {
+        console.warn('Failed to clean up uploaded file:', cleanupError.message);
+      }
     }
     
     res.json({ 
@@ -81,6 +120,78 @@ exports.parseReceiptFile = async (req, res) => {
     });
   } catch (err) {
     console.error('OCR Error:', err);
+    
+    // Clean up file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.warn('Failed to clean up file on error:', cleanupError.message);
+      }
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: err.message 
+    });
+  }
+};
+
+// Serve temporary images for OCR processing
+exports.serveTempImage = (req, res) => {
+  try {
+    const fileName = req.params.filename;
+    const imagePath = path.join(__dirname, '..', 'temp', fileName);
+    
+    // Check if file exists
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Image not found' 
+      });
+    }
+    
+    // Set appropriate headers
+    const ext = path.extname(fileName).toLowerCase();
+    let contentType = 'image/jpeg'; // default
+    
+    switch (ext) {
+      case '.png':
+        contentType = 'image/png';
+        break;
+      case '.gif':
+        contentType = 'image/gif';
+        break;
+      case '.bmp':
+        contentType = 'image/bmp';
+        break;
+      case '.tiff':
+        contentType = 'image/tiff';
+        break;
+      case '.webp':
+        contentType = 'image/webp';
+        break;
+      default:
+        contentType = 'image/jpeg';
+    }
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'no-cache');
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(imagePath);
+    fileStream.pipe(res);
+    
+    fileStream.on('error', (error) => {
+      console.error('Error streaming image:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error serving image' 
+      });
+    });
+    
+  } catch (err) {
+    console.error('Error serving temp image:', err);
     res.status(500).json({ 
       success: false, 
       message: err.message 
@@ -134,6 +245,20 @@ exports.listCountries = async (req, res) => {
     });
   } catch (err) {
     console.error('Countries API Error:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: err.message 
+    });
+  }
+};
+
+// Test OCR functionality
+exports.testOCR = async (req, res) => {
+  try {
+    const result = await ocrHandler.testOCR();
+    res.json(result);
+  } catch (err) {
+    console.error('OCR Test Error:', err);
     res.status(500).json({ 
       success: false, 
       message: err.message 

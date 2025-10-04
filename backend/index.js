@@ -32,7 +32,8 @@ const userRoutes = require('./routes/userRoutes');
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/utils', utilsRoutes);
-app.use('/api/approvalflow', approvalRoutes);
+
+app.use('/api/approvals', approvalRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/users', userRoutes);
