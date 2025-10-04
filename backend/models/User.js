@@ -1,9 +1,12 @@
-const mongoose = require("mongoose");
+// backend/src/models/User.js (CORRECTED)
+
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
 const UserSchema = new Schema({
-    name: { type: String, required: true, trim: true },
+    // ... (other fields)
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
-    password: { type: String, required: true, select: false }, // Don't return password by default
+    password: { type: String, required: true, select: false },
     role: { 
         type: String, 
         enum: ['Admin', 'Manager', 'Employee'], 
@@ -12,15 +15,13 @@ const UserSchema = new Schema({
     companyId: { 
         type: Schema.Types.ObjectId, 
         ref: 'Company', 
-        required: true 
-    },
+        // REMOVE: required: true, 
+    }, // It will be added in the transaction immediately after Company creation
     managerId: { 
         type: Schema.Types.ObjectId, 
         ref: 'User', 
-        default: null // Only employees and managers report to someone
+        default: null
     },
 }, { timestamps: true });
 
-const User = mongoose.model("User", userSchema);
-
-module.exports = User;
+module.exports = mongoose.model('User', UserSchema);
